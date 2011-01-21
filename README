@@ -1,0 +1,26 @@
+Overview
+========
+
+  A storage pool client for riak using protocol buffers, where you can specify your client_id as part of a put / get / etc. request, which will help prevent you from overflowing your vector clock buffer.
+
+Usage:
+======
+
+  ClientId = riakc_pb_pool:make_client_id({self()}).
+  Object = riakc_obj:new(<<"groceries">>, <<"mine">>, <<"eggs & bacon">>).
+
+Create a document
+-----------------
+  
+  riakc_pb_pool:put(ClientId,Object).
+
+Retrieve a document
+-------------------
+
+  riakc_pb_pool:get(123,<<"groceries">>, <<"mine">>).
+
+Delete a document
+-----------------
+
+  riakc_pb_pool:delete(123,<<"groceries">>, <<"mine">>).
+
