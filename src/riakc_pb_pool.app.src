@@ -1,0 +1,7 @@
+{application, riakc_pb_pool,
+ [{description, "riakc_pb_pool"},
+  {vsn, "0.1"},
+  {registered, []},
+  {applications, [kernel, stdlib]},
+  {mod, {riakc_pb_pool_app, []}},
+  {env, []}]}.

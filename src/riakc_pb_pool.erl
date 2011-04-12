@@ -42,6 +42,7 @@ start(Opts) when is_list(Opts) ->
 start_link() -> start_link([]).
 
 start_link(Opts) when is_list(Opts) ->
+    io:format("RIAKKKKKKKKKKKKKKK start_link: Q:~p~n", [ Opts ] ),
     gen_server:start_link({local, ?SERVER}, ?MODULE, Opts, []).
 
 stop() ->
@@ -110,6 +111,7 @@ init(Opts) ->
     Host = get_opt(riak_host, Opts),
     Port = get_opt(riak_port, Opts),
     Interval = get_opt(kick_stuck_requests_interval, Opts),
+    io:format("RIAKKKKKKKKKKKKKKK init: Q:~p~n", [ Opts ] ),
     State = #state{
               max_riak_clients = Start,
               riak_client_queue = queue:new(),
@@ -122,8 +124,10 @@ init(Opts) ->
               client_deaths = 0,
               adjust_clients = false
           },
+    io:format("RIAKKKKKKKKKKKKKKK init: Q:~p~n", [ Opts ] ),
     State2 = build_riak_pool(State),
-    timer:apply_interval(Interval, riakc_pb_pool2, kick_stuck_requests, []),
+    io:format("RIAKKKKKKKKKKKKKKK State2: Q:~p~n", [ State2 ] ),
+    timer:apply_interval(Interval, riakc_pb_pool, kick_stuck_requests, []),
     {ok, State2}.
 
 handle_call(stats, _From, State ) ->
@@ -164,8 +168,8 @@ handle_call(kick_stuck_requests, _From, State) ->
 handle_cast(stop, State) -> {stop, normal, State}.
 
 % Client Exits, or Also called if there is a exception in the Riak Client
-handle_info({'DOWN', ExitMonitorRef, process, Pid, _ExitReason}, State = #state{riak_client_dict = Dict, riak_client_queue = Queue}) ->
-    falcon_logger:error( riakc_pb_pool2, "Client: ~100p Exited", [Pid]),
+handle_info({'DOWN', ExitMonitorRef, process, _Pid, _ExitReason}, State = #state{riak_client_dict = Dict, riak_client_queue = _Queue}) ->
+    %falcon_logger:error( riakc_pb_pool, "Client: ~100p Exited", [Pid]),
     case lists:keyfind( ExitMonitorRef, 2, dict:to_list( Dict ) ) of
         { RiakPid, _MonitorRef } -> 
             Restarts = State#state.client_deaths + 1,
@@ -176,17 +180,17 @@ handle_info({'DOWN', ExitMonitorRef, process, Pid, _ExitReason}, State = #state{
             {noreply, State}
     end;
 handle_info({'EXIT', _Pid, normal}, State) ->
-    falcon_logger:error( riakc_pb_pool2, "Exit message (normal)", []),
+    %falcon_logger:error( riakc_pb_pool, "Exit message (normal)", []),
     {noreply, State};
 % Called if the RiakClient exits e.g. Riak goes away
-handle_info({'EXIT', ExitPid, Reason}, State = #state{riak_client_queue = Queue, riak_client_dict = Dict} ) ->
-    falcon_logger:error( riakc_pb_pool2, "Riak Client: ~p Exited with message : ~100p,  Restarting!!", [ExitPid, Reason]),
+handle_info({'EXIT', ExitPid, _Reason}, State = #state{riak_client_queue = Queue, riak_client_dict = Dict} ) ->
+    %falcon_logger:error( riakc_pb_pool, "Riak Client: ~p Exited with message : ~100p,  Restarting!!", [ExitPid, Reason]),
     ValidRiakClients = queue:filter(fun(RiakPid) -> RiakPid =/= ExitPid end, Queue),
     Dict2 = dict:erase( ExitPid, Dict ),  
     Restarts = State#state.riak_client_deaths + 1,
     {noreply, State#state{riak_client_deaths = Restarts, riak_client_queue = ValidRiakClients, riak_client_dict = Dict2 }};
-handle_info(Msg, State) ->
-    falcon_logger:error( riakc_pb_pool2, "Unexpected message: ~10000p", [Msg]),
+handle_info(_Msg, State) ->
+    %falcon_logger:error( riakc_pb_pool, "Unexpected message: ~10000p", [Msg]),
     {noreply, State}.
 
 terminate(_Reason, _State) -> ok.
@@ -238,7 +242,6 @@ build_riak_pool( State, Count ) ->
 
 create_riak_client(Host, Port) ->
     riakc_pb_socket:start_link(Host, Port).
-
 
 checkout_riak_client( { ClientPid , _Ref } = _From, State = #state{ riak_client_queue = Queue, riak_client_dict = Dict }) ->
     case queue:out(Queue) of
