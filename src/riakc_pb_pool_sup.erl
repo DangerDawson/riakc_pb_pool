@@ -11,7 +11,7 @@ start_link() ->
 init([]) ->
     Args = [
         {riak_host, "0.0.0.0"},
-        {riak_port, "8087"},
+        {riak_port, 8087},
         {riak_clients_start, 5},
         {riak_clients_max, 20}
     ],

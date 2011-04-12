@@ -2,13 +2,14 @@
 
 -behaviour(gen_server).
 
-%TODO: automatically set a client id if it is not passed e.g. reduct the arity for all the commands 
+%TODO: Maybe set client id , although I would like to set this on the request
 -export([delete/3, get/3,
 	 list_buckets/1, list_keys/2, mapred/3, put/2, put/3, max_riak_clients/1,
      checkout_pid/0, checkin_pid/1,
 	 start/0, start/1, make_client_id/1, kick_stuck_requests/0,
 	 start_link/0, start_link/1, stats/0, stop/0]).
 
+%TODO: Put this handle_info back in place
 -export([code_change/3, handle_call/3, handle_cast/2,
 	 handle_info/2, init/1, terminate/2]).
 
@@ -42,7 +43,6 @@ start(Opts) when is_list(Opts) ->
 start_link() -> start_link([]).
 
 start_link(Opts) when is_list(Opts) ->
-    io:format("RIAKKKKKKKKKKKKKKK start_link: Q:~p~n", [ Opts ] ),
     gen_server:start_link({local, ?SERVER}, ?MODULE, Opts, []).
 
 stop() ->
@@ -110,8 +110,7 @@ init(Opts) ->
     Start = get_opt(riak_clients, Opts),
     Host = get_opt(riak_host, Opts),
     Port = get_opt(riak_port, Opts),
-    Interval = get_opt(kick_stuck_requests_interval, Opts),
-    io:format("RIAKKKKKKKKKKKKKKK init: Q:~p~n", [ Opts ] ),
+    %Interval = get_opt(kick_stuck_requests_interval, Opts),
     State = #state{
               max_riak_clients = Start,
               riak_client_queue = queue:new(),
@@ -124,10 +123,8 @@ init(Opts) ->
               client_deaths = 0,
               adjust_clients = false
           },
-    io:format("RIAKKKKKKKKKKKKKKK init: Q:~p~n", [ Opts ] ),
     State2 = build_riak_pool(State),
-    io:format("RIAKKKKKKKKKKKKKKK State2: Q:~p~n", [ State2 ] ),
-    timer:apply_interval(Interval, riakc_pb_pool, kick_stuck_requests, []),
+    %timer:apply_interval(Interval, riakc_pb_pool, kick_stuck_requests, []),
     {ok, State2}.
 
 handle_call(stats, _From, State ) ->
@@ -183,8 +180,9 @@ handle_info({'EXIT', _Pid, normal}, State) ->
     %falcon_logger:error( riakc_pb_pool, "Exit message (normal)", []),
     {noreply, State};
 % Called if the RiakClient exits e.g. Riak goes away
-handle_info({'EXIT', ExitPid, _Reason}, State = #state{riak_client_queue = Queue, riak_client_dict = Dict} ) ->
+handle_info({'EXIT', ExitPid, Reason}, State = #state{riak_client_queue = Queue, riak_client_dict = Dict} ) ->
     %falcon_logger:error( riakc_pb_pool, "Riak Client: ~p Exited with message : ~100p,  Restarting!!", [ExitPid, Reason]),
+    io:format("Riak Client: ~p Exited with message : ~100p,  Restarting!!~n", [ExitPid, Reason]),
     ValidRiakClients = queue:filter(fun(RiakPid) -> RiakPid =/= ExitPid end, Queue),
     Dict2 = dict:erase( ExitPid, Dict ),  
     Restarts = State#state.riak_client_deaths + 1,
@@ -234,7 +232,7 @@ build_riak_pool( State, Count ) ->
     {Queue2, Dict2} = case create_riak_client( Host, Port ) of
         {ok, Pid} ->
             { queue:in( Pid, Queue ), dict:store(Pid, undefined, Dict) };
-        {error,econnrefused} ->
+        {error,_} ->
             { Queue, Dict }
     end,
     State2 = State#state{riak_client_queue = Queue2, riak_client_dict = Dict2 },
@@ -242,6 +240,7 @@ build_riak_pool( State, Count ) ->
 
 create_riak_client(Host, Port) ->
     riakc_pb_socket:start_link(Host, Port).
+
 
 checkout_riak_client( { ClientPid , _Ref } = _From, State = #state{ riak_client_queue = Queue, riak_client_dict = Dict }) ->
     case queue:out(Queue) of
